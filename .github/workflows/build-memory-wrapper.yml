@@ -1,0 +1,120 @@
+name: Build standalone wrapper memory hub
+on:
+  push:
+    paths:
+      - '.github/workflows/build-memory-wrapper.yml'
+      - 'port-integration/**'
+      - 'tools/check_port_sdk.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    container:
+      image: devkitpro/devkita64@sha256:1fc388c3a0d34bd2045a6dadcb1020e069d5f876a187fd705de14b4440c00282
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y git curl unzip python3 pkg-config gcc
+          dkp-pacman -S --noconfirm --needed switch-sdl2 switch-curl switch-libexpat switch-zlib switch-libzstd
+      - name: Fetch pinned upstream wrapper
+        run: |
+          git init upstream-port
+          git -C upstream-port remote add origin https://github.com/NaGaa95/genshinimpact_nx.git
+          git -C upstream-port fetch --depth=1 origin 6406b23c5a862b38dfa581facd93c5624a4a6c25
+          git -C upstream-port checkout --detach FETCH_HEAD
+      - name: Download verified public SDK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/danfromtico/mesa-switch/actions/artifacts/11484346771/zip \
+            -o mesa-sdk.zip
+          echo '937cbda82d411c3ca909aa977b3ced82d4e6070046ab016911b1ce84e58ca392  mesa-sdk.zip' | sha256sum -c -
+          unzip -q mesa-sdk.zip -d mesa-sdk
+      - name: Adapt build integration only
+        run: |
+          python3 tools/check_port_sdk.py upstream-port mesa-sdk/opt/devkitpro/portlibs/switch
+          git -C upstream-port diff -- Makefile > sdk-integration.patch
+      - name: Apply and test donor admission correction
+        run: |
+          python3 port-integration/apply_memory_fix.py upstream-port
+          python3 port-integration/test_memory_fix.py upstream-port
+          python3 port-integration/test_workloads.py
+          python3 port-integration/test_string_broker.py
+          python3 port-integration/test_geometry_console.py
+          python3 port-integration/apply_string_broker.py upstream-port
+          python3 port-integration/apply_console_mode.py upstream-port
+          python3 port-integration/apply_real_load.py upstream-port
+          python3 port-integration/apply_runtime_trace.py upstream-port
+          python3 port-integration/test_socket_failure_cleanup.py upstream-port
+          python3 port-integration/test_early_services_cleanup.py upstream-port
+          python3 port-integration/test_module_failure_cleanup.py upstream-port
+          python3 port-integration/test_fingerprint_cleanup.py upstream-port
+          python3 port-integration/test_slab_failure_cleanup.py upstream-port
+          python3 port-integration/test_asset_plugin_trace.py upstream-port
+          python3 port-integration/apply_path_bounds.py upstream-port
+          python3 port-integration/test_path_bounds.py upstream-port
+          python3 port-integration/apply_aps2_bounds.py upstream-port
+          python3 port-integration/test_aps2_bounds.py upstream-port
+          python3 port-integration/apply_elf_load_bounds.py upstream-port
+          python3 port-integration/test_elf_load_bounds.py upstream-port
+          python3 port-integration/apply_relocation_preflight.py upstream-port
+          python3 port-integration/test_relocation_preflight.py upstream-port
+          python3 port-integration/apply_fortify_string_bounds.py upstream-port
+          python3 port-integration/test_fortify_string_bounds.py upstream-port
+          python3 port-integration/test_json_audit.py upstream-port
+          python3 port-integration/apply_input_lifetime.py upstream-port
+          python3 port-integration/test_input_lifetime.py upstream-port
+          python3 port-integration/apply_loader_lock.py upstream-port
+          python3 port-integration/test_loader_lock.py upstream-port
+          python3 port-integration/test_trace_bounds.py
+          python3 port-integration/apply_frame_trace.py upstream-port
+          python3 port-integration/test_frame_trace.py upstream-port
+          python3 port-integration/apply_diagnostic_retention.py upstream-port
+          python3 port-integration/test_diagnostic_retention.py upstream-port
+          python3 port-integration/test_shutdown_trace.py upstream-port
+          python3 port-integration/apply_safe_cleanup.py upstream-port
+          python3 port-integration/test_safe_cleanup.py upstream-port
+          python3 port-integration/apply_guest_termination.py upstream-port
+          python3 port-integration/test_guest_termination.py upstream-port
+          python3 port-integration/apply_shutdown_observer.py upstream-port
+          python3 port-integration/test_shutdown_observer.py upstream-port
+          python3 port-integration/apply_fatal_routes.py upstream-port
+          python3 port-integration/test_fatal_routes.py upstream-port
+          python3 port-integration/apply_render_probe.py upstream-port
+          python3 port-integration/test_render_probe.py upstream-port
+          python3 port-integration/apply_nak_host_fix.py upstream-port
+          python3 port-integration/test_nak_host_fix.py upstream-port
+          python3 port-integration/apply_host_exit_trace.py upstream-port
+          python3 port-integration/test_host_exit_trace.py upstream-port
+          git -C upstream-port diff -- Makefile source/config.h source/libc_shim.c source/main.c source/so_util.c source/memory_broker.c source/android_log_sink.c source/vulkan_bridge.c source/unity_input.c source/unity_input.h source/jni_fake.c source/plugin_loader.c source/error.c source/combo_session.c source/android_identity.c source/libc_shim.h source/plugin_loader.h source/error.h > memory-integration.patch
+      - name: Inspect optimized ARM64 TLS boundary
+        run: python3 port-integration/test_tls_assembly.py upstream-port
+      - name: Compile ARM64 wrapper
+        run: make -C upstream-port -j2
+      - name: Verify linked ARM64 NAK boundary
+        run: python3 port-integration/test_nak_link.py upstream-port/gi-wrapper-memory-hub.elf
+      - name: Upload build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 7
+          name: wrapper-memory-hub
+          path: |
+            nak-link-audit.txt
+            tls-probe-arm64.s
+            memory-integration.patch
+            upstream-port/gi-wrapper-memory-hub.elf
+            upstream-port/gi-wrapper-memory-hub.nro
+          if-no-files-found: warn
+
+
+
+

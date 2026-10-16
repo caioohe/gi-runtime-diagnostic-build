@@ -94,6 +94,8 @@ jobs:
           python3 port-integration/test_nak_host_fix.py upstream-port
           python3 port-integration/apply_host_exit_trace.py upstream-port
           python3 port-integration/test_host_exit_trace.py upstream-port
+          python3 port-integration/apply_dynamic_granularity.py upstream-port
+          python3 port-integration/test_dynamic_granularity.py upstream-port
           git -C upstream-port diff -- Makefile source/config.h source/libc_shim.c source/main.c source/so_util.c source/memory_broker.c source/android_log_sink.c source/vulkan_bridge.c source/unity_input.c source/unity_input.h source/jni_fake.c source/plugin_loader.c source/error.c source/combo_session.c source/android_identity.c source/libc_shim.h source/plugin_loader.h source/error.h > memory-integration.patch
       - name: Inspect optimized ARM64 TLS boundary
         run: python3 port-integration/test_tls_assembly.py upstream-port

@@ -1,5 +1,5 @@
 {
-  ".github/workflows/build-memory-wrapper.yml": "726f3efb541efa4d7724115a3d9811c825bcb705cdb4b9104ca7e77d14e65b31",
+  ".github/workflows/build-memory-wrapper.yml": "8f3190e204cea7d51d594e58535d817f9e68ddb4d5e2876766d263a54a72a3fa",
   ".gitignore": "87afab7c6f27d530d2bb607749437dbab7f16411ba6fa5fccb2d39ff7822b53a",
   "LICENSE": "fec1f8b2d059658c82660fea5e25320f7ec7fecdd4b2fb5e335ce6365412dcbd",
   "README.md": "c7b05226f077a97ea2a2f1132b87ae293bcfb0bf8368d3c8589e6401fb70f8d4",
@@ -8,6 +8,7 @@
   "port-integration/apply_diagnostic_retention.py": "d8b598061d2fd62eb2d5a2e20ea8d66d4d0435849f40e2b80bf0d7164cdf2e37",
   "port-integration/apply_dynamic_granularity.py": "f6c21b0914c59be18e112179c3590f8378d015d155bc9e58fc85cf556aff99ad",
   "port-integration/apply_elf_load_bounds.py": "9088be9b16ca88009bb0dea1da0f264d1dfcb27dc0fe8169d2a0ddbf60328d9d",
+  "port-integration/apply_exception_capture.py": "50e2c1adebb7fe20878716ac6a4dcfae39b3d9c8b1270b8b00d8ff41a43457a2",
   "port-integration/apply_fatal_routes.py": "a5e07a49dfa7531dafee54794174c33fd2d8601ebc33daa0467ef66ce6b47e0c",
   "port-integration/apply_fortify_string_bounds.py": "6bc108e58178aff43de228500efe3878a309429896a4f0f80f4c3c16f5e650b6",
   "port-integration/apply_frame_trace.py": "01ef5dd58014f883f1a8d66799feee1f9f896968ea13c50d6953743962a844a7",
@@ -28,6 +29,7 @@
   "port-integration/apply_string_broker.py": "c41fc96a826c21a2c02eb9b742b99e7acf70eb3992cac76c2f893b6e27e2db9e",
   "port-integration/aps2_bounds.c.inc": "213654e9ed0b00f4b2ad5961d38a60f19353f27f8f3b0229396df703c61a60d0",
   "port-integration/boot_init.c.inc": "a2a290a6b2fceb1212082ea0c1de8ed2eec318f67159eb834980d9bc39c80918",
+  "port-integration/exception_capture.c.inc": "d29807a13cefc8c1804c81811963507597520ad166e65b2df079202d8555bb2e",
   "port-integration/guest_termination.c.inc": "0c7aaf119c1c43a0eea9dd8af333207bbde3274cc25af5314707d43e406f6419",
   "port-integration/host_exit_trace.c.inc": "47166a7abe004cd823f4965aa864353466f08d08210355b6fbfd76938162376b",
   "port-integration/memory_console.c.inc": "1cd6cf270638f2c9f2cbd74fa54251b3125918a8d2979935ef628fceeda9eed2",
@@ -49,6 +51,8 @@
   "port-integration/test_dynamic_granularity.py": "920201018826b7399303a239a4365b235b2e27671ec83f6e536b9efd70e3d515",
   "port-integration/test_early_services_cleanup.py": "82b0e1ec165c63fe7491cb67e8209365f79bd5c740dc9a93bdb2dbcf5fe6c6b7",
   "port-integration/test_elf_load_bounds.py": "3d3619bc6fa66da52e1121f3a9b9e65788ce25679b34c46194e7d85413511eea",
+  "port-integration/test_exception_capture.py": "def3ebd14a6911ca8d5b7f51e6ddb09351f6e2cb432a22db1b07cfd01fc39ba2",
+  "port-integration/test_exception_link.py": "ca35958946830e5857c413bb85bcd65b71c1bbb96694a02b6c988afa4437e18b",
   "port-integration/test_fatal_routes.py": "344bba5617d06bd4be03bbd6e4815c880e2a604b761a614c8d77d51d01fcd439",
   "port-integration/test_fingerprint_cleanup.py": "7416c937613834405e63bd0a43d079ffe4df17fbf9cce6f41dbac1d2f1c12384",
   "port-integration/test_fortify_string_bounds.py": "6fa80ffb0c9e08563a99801ff7735c19fb7426acc2ab3f17eb0ed4897fe7efe3",
@@ -76,5 +80,6 @@
   "port-integration/test_tls_assembly.py": "5d8f42e6822700e7b31d7289a877dbfb8890d4ca1a37a2a82f64c955c790b627",
   "port-integration/test_trace_bounds.py": "3d76bae0644d02643ed30af8e3ce133f36ad006d2e4c576fe753f20fb2d2bf19",
   "port-integration/test_workloads.py": "9e60c774aaee457a03bb489269e4915b47ad91fb2b116d5d16258fb50e406610",
-  "tools/check_port_sdk.py": "6ec2979b8f901cacc9179cf455ad33cca9c96a8d15a806b449978528c5d88b4c"
+  "tools/check_port_sdk.py": "6ec2979b8f901cacc9179cf455ad33cca9c96a8d15a806b449978528c5d88b4c",
+  "tools/decode_exception_record.py": "a7a33bc2da755a869bc5812c89c5bf26b405d959ca66596bee072cd53a34d525"
 }

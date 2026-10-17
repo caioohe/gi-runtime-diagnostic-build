@@ -2,7 +2,8 @@
 from pathlib import Path
 import os,subprocess,sys,tempfile
 r=Path(sys.argv[1]);s=(r/'source/shutdown_observer.c').read_text()
-assert Path(__file__).with_name('shutdown_observer.c.inc').read_text() in s
+integrated=(r/'source/memory_observation.h').exists()
+if not integrated: assert Path(__file__).with_name('shutdown_observer.c.inc').read_text() in s
 main=(r/'source/main.c').read_text();assert main.index('nx_shutdown_observer_start();')<main.index('  so_finalize(&game_mod);',main.index('static void memory_boot_init('))
 def fn(marker):
  x=(r/'source/imports.c').read_text();a=x.index(marker);return x[a:x.index('\n}',a)+2]
@@ -101,8 +102,12 @@ int main(void){
  return 0;
 }
 '''
+if integrated:
+ # Declare SVC and observation stubs after the Result typedef.
+ code=code.replace('typedef int Result;', 'typedef int Result;\n#include "memory_observation.h"\ntypedef uint64_t u64;\n#define InfoType_TotalMemorySize 1\n#define InfoType_UsedMemorySize 2\n#define CUR_PROCESS_HANDLE 0\nstatic Result svcGetInfo(u64 *out,int kind,int h,int v){(void)kind;(void)h;(void)v;*out=42;return 0;}\nvoid nx_memory_sample(NxMemorySample *s){memset(s,0,sizeof(*s));}\nsize_t nx_memory_failure_drain(NxMemoryFailure *out,size_t n){if(!n)return 0;memset(out,0,sizeof(*out));return 1;}')
 with tempfile.TemporaryDirectory() as td:
  p=Path(td)
+ if integrated:(p/'memory_observation.h').write_text((r/'source/memory_observation.h').read_text())
  for name in ['switch.h','guest_termination.h','imports.h']:(p/name).write_text('')
  (p/'test.c').write_text(code)
  subprocess.run(['gcc','-std=c11','-O1','-g','-pthread','-fsanitize=address,undefined','-I'+td,str(p/'test.c'),'-o',str(p/'test')],check=True)

@@ -96,6 +96,9 @@ jobs:
           python3 port-integration/test_host_exit_trace.py upstream-port
           python3 port-integration/apply_dynamic_granularity.py upstream-port
           python3 port-integration/test_dynamic_granularity.py upstream-port
+          python3 port-integration/apply_memory_observation.py upstream-port
+          python3 port-integration/test_memory_observation.py upstream-port
+          python3 port-integration/test_shutdown_observer.py upstream-port
           git -C upstream-port diff -- Makefile source/config.h source/libc_shim.c source/main.c source/so_util.c source/memory_broker.c source/android_log_sink.c source/vulkan_bridge.c source/unity_input.c source/unity_input.h source/jni_fake.c source/plugin_loader.c source/error.c source/combo_session.c source/android_identity.c source/libc_shim.h source/plugin_loader.h source/error.h > memory-integration.patch
       - name: Inspect optimized ARM64 TLS boundary
         run: python3 port-integration/test_tls_assembly.py upstream-port
@@ -107,7 +110,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          retention-days: 7
           name: wrapper-memory-hub
           path: |
             nak-link-audit.txt
@@ -115,6 +117,7 @@ jobs:
             memory-integration.patch
             upstream-port/gi-wrapper-memory-hub.elf
             upstream-port/gi-wrapper-memory-hub.nro
+          retention-days: 7
           if-no-files-found: warn
 
 

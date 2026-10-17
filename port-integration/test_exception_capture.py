@@ -16,7 +16,7 @@ code=r'''
 #include <stdarg.h>
 #include <sched.h>
 typedef uint8_t u8;typedef uint64_t u64;typedef int Result;
-typedef pthread_mutex_t Mutex;typedef struct{int handle;}FsFile;typedef struct{int handle;}FsFileSystem;
+typedef pthread_mutex_t Mutex;typedef struct{int session,own_handle;}Service;typedef struct{Service s;}FsFile;typedef struct{int handle;}FsFileSystem;
 typedef struct{uint64_t x;}Reg;
 typedef struct{uint32_t error_desc,pstate,esr,afsr0,afsr1;Reg pc,lr,sp,fp,far,cpu_gprs[29];}ThreadExceptionDump;
 #define R_SUCCEEDED(x) ((x)==0)
@@ -26,8 +26,8 @@ typedef struct{uint32_t error_desc,pstate,esr,afsr0,afsr1;Reg pc,lr,sp,fp,far,cp
 #define FsWriteOption_Flush 1
 #define FsOpenMode_Write 2
 static uintptr_t g_il2cpp_base=0x10000000,g_il2cpp_size=0x161e0000;
-static FsFileSystem filesystem={1};static int no_fs,create_error,open_error,write_error,short_write,reenter;
-static unsigned opens,closes,writes,traces,creates;
+static FsFileSystem filesystem={1};static int no_fs,create_error,open_error,clone_error,write_error,short_write,reenter;
+static unsigned opens,closes,writes,traces,creates,raw_closes,owned_original;
 static unsigned char disk[4096];
 static pthread_mutex_t gate=PTHREAD_MUTEX_INITIALIZER;static pthread_cond_t changed=PTHREAD_COND_INITIALIZER;
 static int block_write,write_entered,release_write;
@@ -42,11 +42,13 @@ static int threadExceptionIsAArch64(ThreadExceptionDump*c){(void)c;return 1;}
 static void memory_runtime_trace(const char*f,...){assert(!fault_thread&&strstr(f,"EXCEPTION prepare"));++traces;}
 static FsFileSystem*fsdevGetDeviceFileSystem(const char*n){assert(!fault_thread&&!strcmp(n,"sdmc"));return no_fs?NULL:&filesystem;}
 static Result fsFsCreateFile(FsFileSystem*f,const char*p,int64_t size,unsigned opt){assert(!fault_thread&&f==&filesystem&&strstr(p,"exception-0000000012345678.bin")&&size==4096&&!opt);++creates;if(!create_error)memset(disk,0,sizeof disk);return create_error;}
-static Result fsFsOpenFile(FsFileSystem*f,const char*p,unsigned mode,FsFile*out){assert(!fault_thread&&f==&filesystem&&p&&mode==2);++opens;out->handle=5;return open_error;}
-static void fsFileClose(FsFile*f){assert(f->handle==5);++closes;}
+static Result fsFsOpenFile(FsFileSystem*f,const char*p,unsigned mode,FsFile*out){assert(!fault_thread&&f==&filesystem&&p&&mode==2);++opens;out->s.session=5;out->s.own_handle=owned_original;return open_error;}
+static Result serviceClone(Service*s,Service*out){assert(!fault_thread&&s->session==5);out->session=6;out->own_handle=1;return clone_error;}
+static Result svcCloseHandle(int h){assert(!fault_thread&&h==5);++raw_closes;return 0;}
+static void fsFileClose(FsFile*f){assert(f->s.session==5||f->s.session==6);++closes;}
 void __libnx_exception_handler(ThreadExceptionDump*);
 static Result fsFileWrite(FsFile*f,int64_t off,const void*buf,uint64_t n,unsigned opt){
- assert(f->handle==5&&!off&&n==456&&opt==1);++writes;
+ assert(f->s.session==6&&!off&&n==456&&opt==1);++writes;
  if(reenter){reenter=0;ThreadExceptionDump nested={0};nested.pc.x=0xdead;__libnx_exception_handler(&nested);}
  pthread_mutex_lock(&gate);
  if(block_write){write_entered=1;pthread_cond_broadcast(&changed);while(!release_write)pthread_cond_wait(&changed,&gate);}
@@ -61,7 +63,7 @@ static void reset(void){
  assert(!exception_open);
  memset(&exception_record,0,sizeof exception_record);exception_claim=exception_sealed=exception_persisted=0;
  exception_started=exception_stopped=0;exception_run_tick=0;exception_last_write_result=0;
- no_fs=create_error=open_error=write_error=short_write=reenter=0;opens=closes=writes=traces=creates=0;
+ no_fs=create_error=open_error=clone_error=write_error=short_write=reenter=0;opens=closes=writes=traces=creates=raw_closes=owned_original=0;
  block_write=write_entered=release_write=0;stop_entered=stop_done=0;memset(disk,0xcc,sizeof disk);
 }
 static int disk_valid(void){NxExceptionRecord r;memcpy(&r,disk,sizeof r);return r.magic==EX_MAGIC&&r.end==EX_END&&r.version==1&&r.bytes==456&&r.checksum==exception_checksum(&r);}
@@ -71,15 +73,16 @@ static void*worker(void*p){fault(p);return NULL;}
 static void*stopper(void*p){(void)p;stop_entered=1;nx_exception_capture_stop();stop_done=1;return NULL;}
 int main(int argc,char**argv){
  assert(!pthread_mutex_init(&exception_io_lock,NULL));
- for(unsigned test=0;test<4;test++){
-  reset();if(test==1)no_fs=1;if(test==2)create_error=7;if(test==3)open_error=8;
+ for(unsigned test=0;test<5;test++){
+  reset();if(test==1)no_fs=1;if(test==2)create_error=7;if(test==3)open_error=8;if(test==4)clone_error=9;
   nx_exception_capture_prepare();nx_exception_capture_prepare();assert(traces==1);
   ThreadExceptionDump c=ctx(0x111);fault(&c);check(0x111);
   if(!test)assert(exception_persisted&&disk_valid());else assert(!exception_persisted);
-  nx_exception_capture_stop();nx_exception_capture_stop();unsigned w=writes;nx_exception_capture_poll();assert(writes==w&&closes==(test?0:1));
+  nx_exception_capture_stop();nx_exception_capture_stop();unsigned w=writes;nx_exception_capture_poll();assert(writes==w&&closes==((test==0||test==4)?1:0));
  }
  reset();nx_exception_capture_stop();nx_exception_capture_prepare();assert(!creates&&!traces);
  reset();write_error=9;nx_exception_capture_prepare();assert(closes==1&&!exception_open);ThreadExceptionDump c=ctx(0x111);fault(&c);check(0x111);assert(!exception_persisted);nx_exception_capture_stop();
+ reset();owned_original=1;nx_exception_capture_prepare();assert(raw_closes==1&&!closes);fault(&c);assert(exception_persisted);nx_exception_capture_stop();assert(closes==1);
  /* Failed write retains sealed original; observer poll can retry. */
  reset();nx_exception_capture_prepare();assert(disk_valid());write_error=10;fault(&c);check(0x111);assert(!exception_persisted&&exception_last_write_result==10);
  ThreadExceptionDump other=ctx(0x999);fault(&other);check(0x111);write_error=0;nx_exception_capture_poll();assert(exception_persisted&&disk_valid());nx_exception_capture_stop();
@@ -101,7 +104,7 @@ int main(int argc,char**argv){
  /* Null input does not claim, and stopping before a fault still retains RAM. */
  reset();fault(NULL);assert(!exception_claim);nx_exception_capture_stop();fault(&c);check(0x111);assert(!writes);
  if(argc>1){reset();nx_exception_capture_prepare();fault(&c);FILE*f=fopen(argv[1],"wb");assert(f&&fwrite(disk,1,sizeof disk,f)==sizeof disk);assert(!fclose(f));nx_exception_capture_stop();}
- puts("PASS exception capture: open/create/write/flush-equivalent failure, torn record/retry, reentry, first winner, stop overlap and immutable original context");return 0;
+ puts("PASS exception capture: open/create/session-clone/write/flush-equivalent failure, torn record/retry, reentry, first winner, stop overlap and immutable original context");return 0;
 }
 '''
 with tempfile.TemporaryDirectory() as td:

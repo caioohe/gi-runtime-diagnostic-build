@@ -88,6 +88,21 @@ void nx_exception_capture_prepare(void) {
     rc=fsFsCreateFile(fs,exception_path,4096,0);
     if(R_SUCCEEDED(rc))rc=fsFsOpenFile(fs,exception_path,FsOpenMode_Write,&exception_file);
     if(R_SUCCEEDED(rc)) {
+      /* A cloned domain session retains this object ID on an owned handle.
+       * Transfer ownership without closing the original child object: closing
+       * it here would invalidate the very object used by the clone. Separate
+       * session means fsFileWrite bypasses libnx's shared FS session manager. */
+      Service dedicated;
+      rc=serviceClone(&exception_file.s,&dedicated);
+      if(R_SUCCEEDED(rc)) {
+        /* A non-domain/owned original also has a session handle to release.
+         * Close only that handle, never the shared domain object ID. */
+        if(exception_file.s.own_handle)svcCloseHandle(exception_file.s.session);
+        exception_file.s=dedicated;
+      }
+      else fsFileClose(&exception_file);
+    }
+    if(R_SUCCEEDED(rc)) {
       NxExceptionRecord armed={0};exception_header(&armed);
       armed.checksum=exception_checksum(&armed);
       rc=fsFileWrite(&exception_file,0,&armed,sizeof(armed),FsWriteOption_Flush);

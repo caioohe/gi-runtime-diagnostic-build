@@ -4,7 +4,7 @@ import sys
 root=Path(sys.argv[1]);r=root/'source';here=Path(__file__).parent
 for name in ['guest_alloc_observation.c','guest_alloc_observation.h']:
  (r/name).write_text((here/(name+'.inc')).read_text())
-p=r/'imports.c';s=p.read_text();s='#include "guest_alloc_observation.h"\n'+s
+p=r/'imports.c';s=p.read_text();assert s.count('#define _GNU_SOURCE')==1;s=s.replace('#define _GNU_SOURCE','#define _GNU_SOURCE\n#include "guest_alloc_observation.h"',1)
 start=s.index('static void *nx_guest_memalign(');end=s.index('\nstatic int nx_guest_posix_memalign',start)
 b=s[start:end]
 a='  const int caller_errno = errno;';assert b.count(a)==1;b=b.replace(a,a+'\n  nx_guest_alloc_attempt();')

@@ -2,6 +2,7 @@
 from pathlib import Path
 import subprocess,sys,tempfile
 root=Path(sys.argv[1]);r=root/'source';source=(r/'imports.c').read_text();a=source.index('static void *nx_guest_memalign(');b=source.index('\nstatic int nx_guest_posix_memalign',a);wrapper=source[a:b]
+assert source.index('#define _GNU_SOURCE')<source.index('#include "guest_alloc_observation.h"'), 'Observation header must follow feature macros'
 main=(r/'main.c').read_text();assert main.count('nx_guest_alloc_sample(), render(')==2
 assert main.index('supported original image fingerprints')<main.index('nx_guest_alloc_bind(')
 code=r'''

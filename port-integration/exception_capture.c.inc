@@ -6,6 +6,7 @@
 #include "config.h"
 #include "libc_shim.h"
 #include "exception_capture.h"
+#include "guest_alloc_observation.h"
 #define NX_EXCEPTION_STACK_BYTES 0x8000u
 __attribute__((aligned(16))) u8 __nx_exception_stack[NX_EXCEPTION_STACK_BYTES];
 u64 __nx_exception_stack_size=sizeof(__nx_exception_stack);
@@ -18,9 +19,10 @@ typedef struct {
   uint64_t host_base,guest_base,guest_size,error_desc,pstate,esr,afsr0,afsr1,aarch64;
   uint64_t pc,lr,sp,fp,far,regs[29];
   char build[48];
+  uint64_t allocation[NX_ALLOC_OBSERVATION_WORDS];
   uint64_t checksum,end;
 } NxExceptionRecord;
-_Static_assert(sizeof(NxExceptionRecord)==456,"update decoder for record layout change");
+_Static_assert(sizeof(NxExceptionRecord)==600,"update decoder for record layout change");
 static NxExceptionRecord exception_record;
 static unsigned exception_claim,exception_sealed,exception_persisted;
 static uint64_t exception_run_tick;
@@ -38,7 +40,7 @@ static __attribute__((noinline,noclone)) uint64_t exception_checksum(const NxExc
   return value;
 }
 static __attribute__((noinline,noclone)) void exception_header(NxExceptionRecord *r) {
-  r->magic=EX_MAGIC;r->version=1;r->bytes=sizeof(*r);r->end=EX_END;
+  r->magic=EX_MAGIC;r->version=2;r->bytes=sizeof(*r);r->end=EX_END;
   r->run_tick=exception_run_tick;
   const char *build=EXCEPTION_BUILD;
   for(size_t i=0;i<sizeof(r->build);i++) {
@@ -128,8 +130,10 @@ __attribute__((noinline,noclone)) void __libnx_exception_handler(ThreadException
   r->pc=context->pc.x;r->lr=context->lr.x;r->sp=context->sp.x;
   r->fp=context->fp.x;r->far=context->far.x;
   for(unsigned i=0;i<29;i++)r->regs[i]=context->cpu_gprs[i].x;
+  nx_guest_alloc_snapshot(r->allocation);
   r->checksum=exception_checksum(r);
   __atomic_store_n(&exception_sealed,1,__ATOMIC_RELEASE);
   nx_exception_capture_poll();
   /* Return to the original libnx fatal path. No recovery or fault suppression. */
 }
+

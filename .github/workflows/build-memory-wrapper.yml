@@ -99,6 +99,8 @@ jobs:
           python3 port-integration/apply_memory_observation.py upstream-port
           python3 port-integration/test_memory_observation.py upstream-port
           python3 port-integration/test_shutdown_observer.py upstream-port
+          python3 port-integration/apply_guest_alloc_observation.py upstream-port
+          python3 port-integration/test_guest_alloc_observation.py upstream-port
           python3 port-integration/apply_exception_capture.py upstream-port
           python3 port-integration/test_exception_capture.py upstream-port
           git -C upstream-port diff -- Makefile source/config.h source/libc_shim.c source/main.c source/so_util.c source/memory_broker.c source/android_log_sink.c source/vulkan_bridge.c source/unity_input.c source/unity_input.h source/jni_fake.c source/plugin_loader.c source/error.c source/combo_session.c source/android_identity.c source/libc_shim.h source/plugin_loader.h source/error.h source/exception_capture.c > memory-integration.patch

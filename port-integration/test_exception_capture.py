@@ -48,7 +48,7 @@ static Result svcCloseHandle(int h){assert(!fault_thread&&h==5);++raw_closes;ret
 static void fsFileClose(FsFile*f){assert(f->s.session==5||f->s.session==6);++closes;}
 void __libnx_exception_handler(ThreadExceptionDump*);
 static Result fsFileWrite(FsFile*f,int64_t off,const void*buf,uint64_t n,unsigned opt){
- assert(f->s.session==6&&!off&&n==456&&opt==1);++writes;
+ assert(f->s.session==6&&!off&&n==600&&opt==1);++writes;
  if(reenter){reenter=0;ThreadExceptionDump nested={0};nested.pc.x=0xdead;__libnx_exception_handler(&nested);}
  pthread_mutex_lock(&gate);
  if(block_write){write_entered=1;pthread_cond_broadcast(&changed);while(!release_write)pthread_cond_wait(&changed,&gate);}
@@ -57,7 +57,7 @@ static Result fsFileWrite(FsFile*f,int64_t off,const void*buf,uint64_t n,unsigne
  if(write_error)return write_error;
  memcpy(disk,buf,n);return 0;
 }
-'''+source+r'''
+''' + '\n#define NX_ALLOC_OBSERVATION_WORDS 18\nstatic void nx_guest_alloc_snapshot(uint64_t out[18]){for(unsigned i=0;i<18;i++)out[i]=0;out[0]=1;out[17]=118;}\n' + source + r'''
 static ThreadExceptionDump ctx(uint64_t pc){ThreadExceptionDump c={0};c.error_desc=0x101;c.esr=0x92000045;c.pc.x=pc;c.lr.x=0x222;c.sp.x=0x333;c.fp.x=0x444;c.far.x=0x555;for(unsigned i=0;i<29;i++)c.cpu_gprs[i].x=0x1000+i;return c;}
 static void reset(void){
  assert(!exception_open);
@@ -66,7 +66,7 @@ static void reset(void){
  no_fs=create_error=open_error=clone_error=write_error=short_write=reenter=0;opens=closes=writes=traces=creates=raw_closes=owned_original=0;
  block_write=write_entered=release_write=0;stop_entered=stop_done=0;memset(disk,0xcc,sizeof disk);
 }
-static int disk_valid(void){NxExceptionRecord r;memcpy(&r,disk,sizeof r);return r.magic==EX_MAGIC&&r.end==EX_END&&r.version==1&&r.bytes==456&&r.checksum==exception_checksum(&r);}
+static int disk_valid(void){NxExceptionRecord r;memcpy(&r,disk,sizeof r);return r.magic==EX_MAGIC&&r.end==EX_END&&r.version==2&&r.bytes==600&&r.checksum==exception_checksum(&r);}
 static void check(uint64_t pc){assert(exception_sealed&&exception_record.pc==pc&&exception_record.esr==0x92000045&&exception_record.regs[28]==0x101c&&exception_record.checksum==exception_checksum(&exception_record));}
 static void fault(ThreadExceptionDump*c){fault_thread=1;__libnx_exception_handler(c);fault_thread=0;}
 static void*worker(void*p){fault(p);return NULL;}
@@ -109,16 +109,17 @@ int main(int argc,char**argv){
 '''
 with tempfile.TemporaryDirectory() as td:
  p=Path(td)
- for name in ['switch.h','config.h','libc_shim.h','exception_capture.h']:(p/name).write_text('')
+ for name in ['switch.h','config.h','libc_shim.h','exception_capture.h','guest_alloc_observation.h']:(p/name).write_text('')
  (p/'test.c').write_text(code)
  subprocess.run(['gcc','-std=c11','-O1','-g','-pthread','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-pie','-no-pie','-I'+td,str(p/'test.c'),'-o',str(p/'test')],check=True)
  record=Path(sys.argv[2]) if len(sys.argv)>2 else p/'record.bin'
  subprocess.run([str(p/'test'),str(record)],check=True,env={**os.environ,'ASAN_OPTIONS':'detect_leaks=0'})
  import importlib.util
  spec=importlib.util.spec_from_file_location('exception_decoder',Path(__file__).parents[1]/'tools/decode_exception_record.py');decoder=importlib.util.module_from_spec(spec);spec.loader.exec_module(decoder)
- data=record.read_bytes();decoded=decoder.decode(data);assert decoded['pc']==0x111 and decoded['x28']==0x101c and decoded['context_present']==1
- for corrupt in [data[:100],data[:24]+bytes([data[24]^1])+data[25:],bytes(len(data))]:
+ data=record.read_bytes();decoded=decoder.decode(data);assert decoded['pc']==0x111 and decoded['x28']==0x101c and decoded['context_present']==1 and decoded['allocation']['schema']==1 and decoded['allocation']['cache_generation']==118
+ for corrupt in [data[:100],data[:599],data[:24]+bytes([data[24]^1])+data[25:],bytes(len(data))]:
   try:decoder.decode(corrupt)
   except ValueError:pass
   else:raise AssertionError('decoder accepted bad/truncated record')
  print('PASS decoder: actual capture bytes, truncation, corruption and invalid magic')
+
